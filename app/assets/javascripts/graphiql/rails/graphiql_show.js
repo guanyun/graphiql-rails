@@ -77,7 +77,12 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 
   // Render <GraphiQL /> into the body.
-  var elementProps = { fetcher: graphQLFetcher, defaultQuery: defaultQuery, headerEditorEnabled: graphiqlContainer.dataset.headerEditorEnabled === 'true' };
+  var elementProps = {
+    fetcher: graphQLFetcher,
+    defaultQuery: defaultQuery,
+    shouldPersistHeaders: true,
+    headerEditorEnabled: graphiqlContainer.dataset.headerEditorEnabled === 'true'
+  };
   
   Object.assign(elementProps, { query: parameters.query, variables: parameters.variables })
   if (queryParams === 'true') {
@@ -90,4 +95,67 @@ document.addEventListener("DOMContentLoaded", function(event) {
     ),
     document.getElementById("graphiql-container")
   );
+
+  /**
+   * Roles and Users Plugin
+   */
+  const topBar = document.querySelector('.topBar');
+  const createUsersSelect = () => {
+    const doc = {
+      "query": "query AllRoles {\n  allRoles {\n id\n name\n users {\n id\n name\n token\n }\n}\n}\n",
+      "variables": null,
+      "operationName": "AllRoles"
+    };
+
+    graphQLFetcher(doc, {}).then(({ data }) => {
+      if (!data?.allRoles.length) return;
+
+      const options = [];
+
+      for (let i = 0; i < data.allRoles.length; i++) {
+        const role = data.allRoles[i];
+        for (let j = 0; j < role.users.length; j++) {
+          const user = role.users[j];
+          options.push({ value: user.token, label: role.name + ': ' + user.name });
+        }
+      }
+
+      const plugins = document.createElement('div');
+      plugins.className = 'plugins';
+      plugins.style.marginLeft = 'auto'
+      topBar.append(plugins);
+
+      const getCachedHeaders = () => {
+        const key = 'graphiql:headers';
+        const headers = localStorage.getItem(key) ? JSON.parse(localStorage.getItem(key)) : {};
+        return headers;
+      }
+
+      const setCachedHeaders = (headers) => {
+        const key = 'graphiql:headers';
+        localStorage.setItem(key, JSON.stringify({ ...getCachedHeaders(), ...headers}));
+      }
+
+      const onChange = (evt) => {
+        setCachedHeaders({ Authorization: evt.target.value });
+        window.location.reload();
+      }
+
+      const cachedHeaders = getCachedHeaders(); 
+      const defaultToken = cachedHeaders?.Authorization || '';
+
+      ReactDOM.render(
+        React.createElement('select',
+          { onChange, value: defaultToken },
+          options.map((option) => React.createElement('option', { value: option.value}, option.label))
+        ),
+        plugins
+      );
+    })
+
+  }
+
+  if (topBar) {
+    createUsersSelect();
+  }
 });
